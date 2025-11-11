@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<BorderPane focusTraversable="true" maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="400.0" prefWidth="600.0" xmlns="http://javafx.com/javafx/21.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.juaneuse.sniffx.SnifferController">
+   <top>
+      <HBox prefHeight="21.0" prefWidth="600.0" spacing="10.0" BorderPane.alignment="CENTER">
+         <children>
+            <Button fx:id="btnStatus" mnemonicParsing="false" onAction="#onTracked" text="Start/Stop" />
+            <ComboBox fx:id="comboInterfaces" onAction="#onInterfaceSelected" prefWidth="150.0" promptText="Interfaz de red" />
+         </children>
+         <padding>
+            <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
+         </padding>
+      </HBox>
+   </top>
+   <center>
+      <TableView fx:id="tablePackets" prefHeight="334.0" prefWidth="580.0" BorderPane.alignment="CENTER">
+        <columns>
+          <TableColumn fx:id="columnTimestamp" editable="false" prefWidth="75.0" text="Timestamp" />
+          <TableColumn fx:id="columnLegth" editable="false" prefWidth="75.0" text="Length" />
+          <TableColumn fx:id="columnProtocol" editable="false" prefWidth="75.0" text="Protocol" />
+        </columns>
+         <BorderPane.margin>
+            <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
+         </BorderPane.margin>
+         <columnResizePolicy>
+            <TableView fx:constant="CONSTRAINED_RESIZE_POLICY" />
+         </columnResizePolicy>
+      </TableView>
+   </center>
+</BorderPane>

@@ -1,0 +1,37 @@
+# Archivos y carpetas de compilación
+target/
+out/
+build/
+
+# Archivos de configuración de IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+*.swp
+*.swo
+*.class
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Archivos temporales
+*.tmp
+*.bak
+
+# Configuración específica del entorno
+*.env
+*.properties.local
+
+# Archivos generados por NetBeans
+nbproject/private/
+build/
+dist/
+nb-configuration.xml
+nbactions.xml
+dependency-reduced-pom.xml
