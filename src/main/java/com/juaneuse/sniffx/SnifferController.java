@@ -9,6 +9,7 @@ import java.util.List;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.collections.transformation.SortedList;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
@@ -21,7 +22,7 @@ import org.pcap4j.core.PcapNativeException;
 import org.pcap4j.core.PcapNetworkInterface;
 
 public class SnifferController implements PacketObserver {
-    
+
     private PacketSniffer packetSniffer;
     private boolean running = false;
     private List<PcapNetworkInterface> listInterfaces;
@@ -45,32 +46,34 @@ public class SnifferController implements PacketObserver {
 
     @FXML
     private TableView<PacketInfo> tablePackets;
-    
+
     @FXML
     void initialize() {
         columnLegth.setCellValueFactory(new PropertyValueFactory<>("length"));
         columnProtocol.setCellValueFactory(new PropertyValueFactory<>("protocol"));
         columnTimestamp.setCellValueFactory(new PropertyValueFactory<>("timestamp"));
-        
-        tablePackets.setItems(packetList);
-        
+
+        SortedList<PacketInfo> sortedList = new SortedList<>(packetList);
+        sortedList.comparatorProperty().bind(tablePackets.comparatorProperty());
+
+        tablePackets.setItems(sortedList);
+
         packetSniffer = new PacketSniffer();
         packetSniffer.addObserver(this);
-        
+
         ObservableList<String> ListInterfaceName = FXCollections.observableArrayList();
         try {
             listInterfaces = packetSniffer.listInterfaces();
-            
-            
-            for(PcapNetworkInterface networkInterface : listInterfaces){
+
+            for (PcapNetworkInterface networkInterface : listInterfaces) {
                 ListInterfaceName.add(networkInterface.getName());
             }
         } catch (PcapNativeException ex) {
             System.out.println(ex.getMessage());
         }
-        
+
         comboInterfaces.setItems(ListInterfaceName);
-        
+
     }
 
     @FXML
@@ -79,17 +82,17 @@ public class SnifferController implements PacketObserver {
     }
 
     @FXML
-    void onTracked(ActionEvent event) { 
+    void onTracked(ActionEvent event) {
         running = !running;
-        if(running){
-            try{
-                packetList.removeAll();
+        if (running) {
+            try {
+                packetList.clear();
                 packetSniffer.start(interfaceName, listInterfaces);
-            }catch(PcapNativeException pe){
+            } catch (PcapNativeException pe) {
                 System.out.println(pe.getMessage());
             }
-            
-        }else{
+
+        } else {
             try {
                 packetSniffer.stop();
             } catch (NotOpenException ex) {
@@ -102,11 +105,10 @@ public class SnifferController implements PacketObserver {
     public void onPacketReceived(PacketInfo packet) {
         Platform.runLater(() -> {
             packetList.add(packet);
-            FXCollections.sort(packetList, Comparator.comparing(PacketInfo::getTimestamp).reversed());
-            if(packetList.size() > 100) packetList.removeFirst();
+            if (packetList.size() > 100) {
+                packetList.removeFirst();
+            }
         });
     }
-    
-    
 
 }
