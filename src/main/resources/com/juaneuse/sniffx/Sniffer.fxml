@@ -8,7 +8,7 @@
    <top>
       <HBox prefHeight="21.0" prefWidth="600.0" spacing="10.0" BorderPane.alignment="CENTER">
          <children>
-            <Button fx:id="btnStatus" mnemonicParsing="false" onAction="#onTracked" text="Start/Stop" />
+            <Button fx:id="btnStatus" mnemonicParsing="false" onAction="#onTracked" text="Iniciar" />
             <ComboBox fx:id="comboInterfaces" onAction="#onInterfaceSelected" prefWidth="150.0" promptText="Interfaz de red" />
          </children>
          <padding>

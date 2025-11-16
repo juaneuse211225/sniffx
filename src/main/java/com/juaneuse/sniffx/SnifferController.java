@@ -4,7 +4,8 @@ import com.juaneuse.sniffx.model.PacketInfo;
 import com.juaneuse.sniffx.sniffer.PacketObserver;
 import com.juaneuse.sniffx.sniffer.PacketSniffer;
 import java.time.LocalDateTime;
-import java.util.Comparator;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
 import java.util.List;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
@@ -12,8 +13,11 @@ import javafx.collections.ObservableList;
 import javafx.collections.transformation.SortedList;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
+import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.cell.PropertyValueFactory;
@@ -51,6 +55,20 @@ public class SnifferController implements PacketObserver {
     void initialize() {
         columnLegth.setCellValueFactory(new PropertyValueFactory<>("length"));
         columnProtocol.setCellValueFactory(new PropertyValueFactory<>("protocol"));
+
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM/dd - HH:mm:ss.SSS");
+
+        columnTimestamp.setCellFactory(column -> new TableCell<PacketInfo, LocalDateTime>() {
+            @Override
+            protected void updateItem(LocalDateTime item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                } else {
+                    setText(item.format(formatter));
+                }
+            }
+        });
         columnTimestamp.setCellValueFactory(new PropertyValueFactory<>("timestamp"));
 
         SortedList<PacketInfo> sortedList = new SortedList<>(packetList);
@@ -86,17 +104,27 @@ public class SnifferController implements PacketObserver {
         running = !running;
         if (running) {
             try {
+                if (interfaceName == null || interfaceName.isEmpty()) {
+                    Alert alert
+                            = new Alert(AlertType.WARNING, "Seleccione una interfaz primero.");
+                    alert.showAndWait();
+                    running = false;
+                    return;
+                }
                 packetList.clear();
                 packetSniffer.start(interfaceName, listInterfaces);
+                btnStatus.setText("Detener");
             } catch (PcapNativeException pe) {
-                System.out.println(pe.getMessage());
+                new Alert(AlertType.ERROR, "Error al iniciar captura: " + pe.getMessage()).showAndWait();
+                running = false;
             }
 
         } else {
             try {
                 packetSniffer.stop();
+                btnStatus.setText("Iniciar");
             } catch (NotOpenException ex) {
-                System.out.println(ex.getMessage());
+                new Alert(AlertType.ERROR, "Error al detener captura: " + ex.getMessage()).showAndWait();
             }
         }
     }
@@ -106,9 +134,8 @@ public class SnifferController implements PacketObserver {
         Platform.runLater(() -> {
             packetList.add(packet);
             if (packetList.size() > 100) {
-                packetList.removeFirst();
+                packetList.remove(0);
             }
         });
     }
-
 }
