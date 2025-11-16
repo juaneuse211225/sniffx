@@ -17,11 +17,14 @@ public class PacketInfo {
     private LocalDateTime timestamp;
     private Integer length;
     private String protocol;
+    private String srcIp;
+    private String dstIp;
 
     public PacketInfo(Packet packet) {
         this.timestamp = LocalDateTime.now();
         this.length = packet.length();
         this.protocol = detectarProtocolo(packet);
+        extraerIps(packet);
     }
 
     public LocalDateTime getTimestamp() {
@@ -35,6 +38,14 @@ public class PacketInfo {
     public String getProtocol() {
         return protocol;
     }
+
+    public String getDstIp() {
+        return dstIp;
+    }
+
+    public String getSrcIp() {
+        return srcIp;
+    }
     
     private String detectarProtocolo(Packet packet) {
         if (packet.contains(TcpPacket.class)) return "TCP";
@@ -46,5 +57,27 @@ public class PacketInfo {
         return "Desconocido";
     }
     
-    
+    private void extraerIps(Packet packet) {
+
+    // Si es IPv4
+    if (packet.contains(IpV4Packet.class)) {
+        IpV4Packet ip4 = packet.get(IpV4Packet.class);
+        srcIp = "IPv4 -> " + ip4.getHeader().getSrcAddr().getHostAddress();
+        dstIp = "IPv4 -> " + ip4.getHeader().getDstAddr().getHostAddress();
+        return;
+    }
+
+    // Si es IPv6
+    if (packet.contains(IpV6Packet.class)) {
+        IpV6Packet ip6 = packet.get(IpV6Packet.class);
+        srcIp = "IPv6 -> " + ip6.getHeader().getSrcAddr().getHostAddress();
+        dstIp = "IPv6 -> " + ip6.getHeader().getDstAddr().getHostAddress();
+        return;
+    }
+
+    // No es tráfico IP
+    srcIp = "N/A";
+    dstIp = "N/A";
+}
+
 }

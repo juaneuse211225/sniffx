@@ -22,6 +22,8 @@
           <TableColumn fx:id="columnTimestamp" editable="false" prefWidth="75.0" text="Timestamp" />
           <TableColumn fx:id="columnLegth" editable="false" prefWidth="75.0" text="Length" />
           <TableColumn fx:id="columnProtocol" editable="false" prefWidth="75.0" text="Protocol" />
+            <TableColumn fx:id="ColumnDstIp" editable="false" prefWidth="75.0" text="Src IP" />
+            <TableColumn fx:id="ColumnScrIp" editable="false" prefWidth="75.0" text="Dst IP" />
         </columns>
          <BorderPane.margin>
             <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
