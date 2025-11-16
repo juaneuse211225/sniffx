@@ -4,6 +4,7 @@ import com.juaneuse.sniffx.model.PacketInfo;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.pcap4j.core.NotOpenException;
+import org.pcap4j.core.PacketListener;
 import org.pcap4j.core.PcapHandle;
 import org.pcap4j.core.PcapNativeException;
 import org.pcap4j.core.PcapNetworkInterface;
@@ -67,11 +68,14 @@ public class PacketSniffer {
             logger.info("Iniciando captura...");
 
             try {
-                handle.loop(-1, (Packet packet) -> {
-                    if (!running) {
-                        return;
+                handle.loop(-1, new PacketListener() {
+                    @Override
+                    public void gotPacket(Packet packet) {
+                        if (!running) {
+                            return;
+                        }
+                        notifyObservers(new PacketInfo(packet));
                     }
-                    notifyObservers(new PacketInfo(packet));
                 });
 
             } catch (InterruptedException e) {

@@ -44,6 +44,12 @@ public class SnifferController implements PacketObserver {
 
     @FXML
     private TableColumn<PacketInfo, LocalDateTime> columnTimestamp;
+    
+     @FXML
+    private TableColumn<PacketInfo, String> ColumnDstIp;
+
+    @FXML
+    private TableColumn<PacketInfo, String> ColumnScrIp;
 
     @FXML
     private ComboBox<String> comboInterfaces;
@@ -55,6 +61,8 @@ public class SnifferController implements PacketObserver {
     void initialize() {
         columnLegth.setCellValueFactory(new PropertyValueFactory<>("length"));
         columnProtocol.setCellValueFactory(new PropertyValueFactory<>("protocol"));
+        ColumnScrIp.setCellValueFactory(new PropertyValueFactory<>("srcIp"));
+        ColumnDstIp.setCellValueFactory(new PropertyValueFactory<>("dstIp"));
 
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM/dd - HH:mm:ss.SSS");
 
@@ -110,7 +118,7 @@ public class SnifferController implements PacketObserver {
                     alert.showAndWait();
                     running = false;
                     return;
-                }
+    }
                 packetList.clear();
                 packetSniffer.start(interfaceName, listInterfaces);
                 btnStatus.setText("Detener");
@@ -125,7 +133,7 @@ public class SnifferController implements PacketObserver {
                 btnStatus.setText("Iniciar");
             } catch (NotOpenException ex) {
                 new Alert(AlertType.ERROR, "Error al detener captura: " + ex.getMessage()).showAndWait();
-            }
+}
         }
     }
 
