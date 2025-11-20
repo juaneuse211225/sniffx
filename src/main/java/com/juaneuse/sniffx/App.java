@@ -17,17 +17,16 @@ public class App extends Application {
 
     @Override
     public void start(Stage stage) throws IOException {
-        scene = new Scene(loadFXML("Sniffer"), 600, 400);
+        scene = new Scene(loadFXML("Sniffer"));
         stage.setScene(scene);
+        stage.setTitle("SniffX - Analizador de red");
         stage.show();
-    }
-
-    static void setRoot(String fxml) throws IOException {
-        scene.setRoot(loadFXML(fxml));
+        stage.setWidth(600);
+        stage.setHeight(440);
     }
 
     private static Parent loadFXML(String fxml) throws IOException {
-        FXMLLoader fxmlLoader = new FXMLLoader(App.class.getResource(fxml + ".fxml"));
+        FXMLLoader fxmlLoader = new FXMLLoader(App.class.getResource("/com/juaneuse/sniffx/" + fxml + ".fxml"));
         return fxmlLoader.load();
     }
 

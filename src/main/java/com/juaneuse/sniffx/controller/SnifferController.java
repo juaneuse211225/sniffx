@@ -1,4 +1,4 @@
-package com.juaneuse.sniffx;
+package com.juaneuse.sniffx.controller;
 
 import com.juaneuse.sniffx.model.PacketInfo;
 import com.juaneuse.sniffx.sniffer.PacketObserver;
@@ -17,10 +17,13 @@ import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
+import javafx.scene.control.SplitPane;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.cell.PropertyValueFactory;
+import javafx.scene.layout.AnchorPane;
+import javafx.scene.layout.GridPane;
 import org.pcap4j.core.NotOpenException;
 import org.pcap4j.core.PcapNativeException;
 import org.pcap4j.core.PcapNetworkInterface;
@@ -32,9 +35,25 @@ public class SnifferController implements PacketObserver {
     private List<PcapNetworkInterface> listInterfaces;
     private String interfaceName;
     private final ObservableList<PacketInfo> packetList = FXCollections.observableArrayList();
+    private boolean desplegado = true;
+
+    @FXML
+    private Button btnPaneInfo;
 
     @FXML
     private Button btnStatus;
+
+    @FXML
+    private GridPane gridInfoPacket;
+
+    @FXML
+    private AnchorPane panelInferior;
+
+    @FXML
+    private AnchorPane panelSuperior;
+
+    @FXML
+    private SplitPane splitPane;
 
     @FXML
     private TableColumn<PacketInfo, Integer> columnLegth;
@@ -44,12 +63,12 @@ public class SnifferController implements PacketObserver {
 
     @FXML
     private TableColumn<PacketInfo, LocalDateTime> columnTimestamp;
-    
-     @FXML
-    private TableColumn<PacketInfo, String> ColumnDstIp;
 
     @FXML
-    private TableColumn<PacketInfo, String> ColumnScrIp;
+    private TableColumn<PacketInfo, String> ColumnDest;
+
+    @FXML
+    private TableColumn<PacketInfo, String> ColumnSour;
 
     @FXML
     private ComboBox<String> comboInterfaces;
@@ -61,8 +80,8 @@ public class SnifferController implements PacketObserver {
     void initialize() {
         columnLegth.setCellValueFactory(new PropertyValueFactory<>("length"));
         columnProtocol.setCellValueFactory(new PropertyValueFactory<>("protocol"));
-        ColumnScrIp.setCellValueFactory(new PropertyValueFactory<>("srcIp"));
-        ColumnDstIp.setCellValueFactory(new PropertyValueFactory<>("dstIp"));
+        ColumnSour.setCellValueFactory(new PropertyValueFactory<>("srcIp"));
+        ColumnDest.setCellValueFactory(new PropertyValueFactory<>("dstIp"));
 
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM/dd - HH:mm:ss.SSS");
 
@@ -79,14 +98,41 @@ public class SnifferController implements PacketObserver {
         });
         columnTimestamp.setCellValueFactory(new PropertyValueFactory<>("timestamp"));
 
+        //  Asignar SortedList a TableView
         SortedList<PacketInfo> sortedList = new SortedList<>(packetList);
         sortedList.comparatorProperty().bind(tablePackets.comparatorProperty());
 
         tablePackets.setItems(sortedList);
 
+        //  suscribirse al observador
         packetSniffer = new PacketSniffer();
         packetSniffer.addObserver(this);
 
+        loadInterfacesCombo();
+
+        double max = 0.40;
+
+        splitPane.getDividers().get(0).positionProperty().addListener((obs, oldPos, newPos) -> {
+            if (newPos.doubleValue() < max) {
+                splitPane.getDividers().get(0).setPosition(max);
+            }
+        });
+
+        splitPane.getDividers().get(0).positionProperty().addListener((obs, oldPos, newPos) -> {
+            final double SNAP_THRESHOLD = 0.85;
+            double currentPosition = newPos.doubleValue();
+
+            if (currentPosition > SNAP_THRESHOLD) {
+                splitPane.getDividers().get(0).setPosition(1.0);
+                desplegado = false;
+            } else {
+                desplegado = true;
+            }
+        });
+
+    }
+
+    private void loadInterfacesCombo() {
         ObservableList<String> ListInterfaceName = FXCollections.observableArrayList();
         try {
             listInterfaces = packetSniffer.listInterfaces();
@@ -99,7 +145,6 @@ public class SnifferController implements PacketObserver {
         }
 
         comboInterfaces.setItems(ListInterfaceName);
-
     }
 
     @FXML
@@ -118,7 +163,7 @@ public class SnifferController implements PacketObserver {
                     alert.showAndWait();
                     running = false;
                     return;
-    }
+                }
                 packetList.clear();
                 packetSniffer.start(interfaceName, listInterfaces);
                 btnStatus.setText("Detener");
@@ -133,8 +178,16 @@ public class SnifferController implements PacketObserver {
                 btnStatus.setText("Iniciar");
             } catch (NotOpenException ex) {
                 new Alert(AlertType.ERROR, "Error al detener captura: " + ex.getMessage()).showAndWait();
-}
+            }
         }
+    }
+
+    @FXML
+    void onView(ActionEvent event) {
+
+        splitPane.getDividers().get(0).setPosition(desplegado ? 1.0 : 0.6);
+        desplegado = !desplegado;
+
     }
 
     @Override

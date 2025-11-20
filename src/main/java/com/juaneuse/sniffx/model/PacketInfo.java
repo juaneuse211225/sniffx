@@ -3,6 +3,7 @@ package com.juaneuse.sniffx.model;
 import java.time.LocalDateTime;
 import org.pcap4j.packet.ArpPacket;
 import org.pcap4j.packet.IcmpV4CommonPacket;
+import org.pcap4j.packet.IcmpV6CommonPacket;
 import org.pcap4j.packet.IpV4Packet;
 import org.pcap4j.packet.IpV6Packet;
 import org.pcap4j.packet.Packet;
@@ -50,7 +51,7 @@ public class PacketInfo {
     private String detectarProtocolo(Packet packet) {
         if (packet.contains(TcpPacket.class)) return "TCP";
         if (packet.contains(UdpPacket.class)) return "UDP";
-        if (packet.contains(IcmpV4CommonPacket.class)) return "ICMP";
+        if (packet.contains(IcmpV4CommonPacket.class) || packet.contains(IcmpV6CommonPacket.class)) return "ICMP";
         if (packet.contains(ArpPacket.class)) return "ARP";
         if (packet.contains(IpV6Packet.class)) return "IPv6";
         if (packet.contains(IpV4Packet.class)) return "IPv4";
