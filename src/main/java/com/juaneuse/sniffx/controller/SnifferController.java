@@ -1,5 +1,6 @@
 package com.juaneuse.sniffx.controller;
 
+import com.juaneuse.sniffx.model.PacketDetails;
 import com.juaneuse.sniffx.model.PacketInfo;
 import com.juaneuse.sniffx.sniffer.PacketObserver;
 import com.juaneuse.sniffx.sniffer.PacketSniffer;
@@ -8,6 +9,9 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.util.List;
 import javafx.application.Platform;
+import javafx.beans.property.SimpleIntegerProperty;
+import javafx.beans.property.SimpleObjectProperty;
+import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.collections.transformation.SortedList;
@@ -17,10 +21,12 @@ import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
+import javafx.scene.control.Label;
 import javafx.scene.control.SplitPane;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
+import javafx.scene.control.TextArea;
 import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.layout.AnchorPane;
 import javafx.scene.layout.GridPane;
@@ -78,10 +84,18 @@ public class SnifferController implements PacketObserver {
 
     @FXML
     void initialize() {
-        columnLegth.setCellValueFactory(new PropertyValueFactory<>("length"));
-        columnProtocol.setCellValueFactory(new PropertyValueFactory<>("protocol"));
-        ColumnSour.setCellValueFactory(new PropertyValueFactory<>("srcIp"));
-        ColumnDest.setCellValueFactory(new PropertyValueFactory<>("dstIp"));
+        columnLegth.setCellValueFactory(cell -> 
+                new SimpleIntegerProperty(cell.getValue().getParsed().length).asObject()
+        );
+        columnProtocol.setCellValueFactory(cell -> 
+                new SimpleStringProperty(cell.getValue().getParsed().protocol)
+        );
+        ColumnSour.setCellValueFactory(cell -> 
+                new SimpleStringProperty(cell.getValue().getParsed().srcIp)
+        );
+        ColumnDest.setCellValueFactory(cell -> 
+                new SimpleStringProperty(cell.getValue().getParsed().dstIp)
+        );
 
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM/dd - HH:mm:ss.SSS");
 
@@ -96,7 +110,9 @@ public class SnifferController implements PacketObserver {
                 }
             }
         });
-        columnTimestamp.setCellValueFactory(new PropertyValueFactory<>("timestamp"));
+        columnTimestamp.setCellValueFactory(cell -> 
+                new SimpleObjectProperty<>(cell.getValue().getParsed().timestamp)
+        );
 
         //  Asignar SortedList a TableView
         SortedList<PacketInfo> sortedList = new SortedList<>(packetList);
@@ -127,6 +143,12 @@ public class SnifferController implements PacketObserver {
                 desplegado = false;
             } else {
                 desplegado = true;
+            }
+        });
+
+        tablePackets.getSelectionModel().selectedItemProperty().addListener((obs, oldSel, newSel) -> {
+            if (newSel != null) {
+                mostrarDetalles(newSel);
             }
         });
 
@@ -199,4 +221,88 @@ public class SnifferController implements PacketObserver {
             }
         });
     }
+
+    private void mostrarDetalles(PacketInfo info) {
+
+        // Limpiar panel
+        gridInfoPacket.getChildren().clear();
+
+        PacketDetails d = PacketDetails.from(info);
+
+        int row = 0;
+
+        if (d.getTimestamp() != null) {
+            addDetail("Timestamp", d.getTimestamp().toString(), row++);
+        }
+
+        if (d.getProtocol() != null) {
+            addDetail("Protocolo", d.getProtocol(), row++);
+        }
+
+        if (d.getIpVersion() != null) {
+            addDetail("Versión IP", d.getIpVersion(), row++);
+        }
+
+        if (d.getSrcIp() != null) {
+            addDetail("IP Origen", d.getSrcIp(), row++);
+        }
+
+        if (d.getDstIp() != null) {
+            addDetail("IP Destino", d.getDstIp(), row++);
+        }
+
+        if (d.getSrcPort() != null) {
+            addDetail("Puerto Origen", d.getSrcPort().toString(), row++);
+        }
+
+        if (d.getDstPort() != null) {
+            addDetail("Puerto Destino", d.getDstPort().toString(), row++);
+        }
+
+        if (d.getTcpFlags() != null) {
+            addDetail("Flags TCP", d.getTcpFlags(), row++);
+        }
+
+        if (d.getHexDump() != null) {
+            addHexDump("Hex Dump", d.getHexDump(), row++);
+        }
+    }
+
+    private void addDetail(String label, String value, int row) {
+        Label key = new Label(label + ":");
+        Label val = new Label(value);
+
+        key.setStyle("-fx-font-weight: bold;");
+        val.setStyle("-fx-font-family: 'Consolas';");
+
+        gridInfoPacket.addRow(row, key, val);
+    }
+
+    private void addHexDump(String label, String value, int row) {
+
+        Label key = new Label(label + ":");
+        key.setStyle("-fx-font-weight: bold;");
+
+        TextArea area = new TextArea(value);
+        area.setEditable(false);
+        area.setWrapText(false);
+        area.setPrefWidth(450);
+        area.setMinWidth(450);
+        area.setPrefRowCount(10);
+        area.setStyle("-fx-font-family: 'Consolas'; -fx-font-size: 12px;");
+
+        // Copiar al portapapeles al hacer click
+        area.setOnMouseClicked(e -> {
+            javafx.scene.input.Clipboard clipboard = javafx.scene.input.Clipboard.getSystemClipboard();
+            javafx.scene.input.ClipboardContent content = new javafx.scene.input.ClipboardContent();
+            content.putString(value);
+            clipboard.setContent(content);
+
+            System.out.println("HexDump copiado al portapapeles.");
+        });
+
+        gridInfoPacket.add(key, 0, row);
+        gridInfoPacket.add(area, 1, row);
+    }
+
 }
