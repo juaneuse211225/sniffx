@@ -89,7 +89,8 @@ class PacketSnifferTest {
     @Test
     void testNotifyObservers_singlePacket() {
         sniffer.addObserver(mockObserver);
-
+        
+        when(mockPacket.getRawData()).thenReturn(new byte[]{0x01, 0x02, 0x03});
         PacketInfo info = new PacketInfo(mockPacket);
 
         snifferTestNotify(sniffer, info);
@@ -106,7 +107,8 @@ class PacketSnifferTest {
 
         sniffer.addObserver(faulty);
         sniffer.addObserver(working);
-
+        
+        when(mockPacket.getRawData()).thenReturn(new byte[]{0x01, 0x02, 0x03});
         PacketInfo info = new PacketInfo(mockPacket);
 
         snifferTestNotify(sniffer, info);
@@ -166,6 +168,7 @@ class PacketSnifferTest {
     void testStartTriggersLoopAndObserverReceivesPacket() throws Exception {
 
         when(mockInterface.getName()).thenReturn("eth0");
+        when(mockPacket.getRawData()).thenReturn(new byte[]{0x01, 0x02, 0x03});
 
         // ⬅ AQUÍ ESTABA EL PROBLEMA:
         when(mockInterface.openLive(anyInt(), any(), anyInt())).thenReturn(mockHandle);
