@@ -72,7 +72,7 @@
             </AnchorPane>
             <AnchorPane fx:id="panelInferior" minHeight="0.0" minWidth="0.0" prefHeight="100.0" prefWidth="200.0">
    <children>
-      <GridPane fx:id="gridInfoPacket" hgap="10.0" prefHeight="129.0" prefWidth="598.0" style="-fx-background-color: #111;" vgap="10.0">
+      <GridPane fx:id="gridInfoPacket" hgap="10.0" prefHeight="129.0" prefWidth="598.0" vgap="10.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
          <padding>
             <Insets bottom="5.0" left="5.0" right="5.0" top="5.0" />
          </padding>
