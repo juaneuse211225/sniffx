@@ -89,7 +89,7 @@ class PacketSnifferTest {
     @Test
     void testNotifyObservers_singlePacket() {
         sniffer.addObserver(mockObserver);
-        
+
         when(mockPacket.getRawData()).thenReturn(new byte[]{0x01, 0x02, 0x03});
         PacketInfo info = new PacketInfo(mockPacket);
 
@@ -107,7 +107,7 @@ class PacketSnifferTest {
 
         sniffer.addObserver(faulty);
         sniffer.addObserver(working);
-        
+
         when(mockPacket.getRawData()).thenReturn(new byte[]{0x01, 0x02, 0x03});
         PacketInfo info = new PacketInfo(mockPacket);
 
@@ -158,7 +158,7 @@ class PacketSnifferTest {
 
         runningField.set(sniffer, true); // simular que ya está corriendo
 
-        sniffer.start("eth0", List.of(mockInterface));
+        sniffer.start("eth0", List.of(mockInterface), "");
 
         // como ya estaba corriendo NO debe intentar abrir handle ni loop
         verify(mockHandle, never()).loop(anyInt(), any(PacketListener.class));
@@ -168,22 +168,26 @@ class PacketSnifferTest {
     void testStartTriggersLoopAndObserverReceivesPacket() throws Exception {
 
         when(mockInterface.getName()).thenReturn("eth0");
-        when(mockPacket.getRawData()).thenReturn(new byte[]{0x01, 0x02, 0x03});
+        when(mockInterface.openLive(
+                anyInt(),
+                any(PcapNetworkInterface.PromiscuousMode.class),
+                anyInt()))
+                .thenReturn(mockHandle);
 
-        // ⬅ AQUÍ ESTABA EL PROBLEMA:
-        when(mockInterface.openLive(anyInt(), any(), anyInt())).thenReturn(mockHandle);
+        when(mockPacket.getRawData())
+                .thenReturn(new byte[]{0x01, 0x02, 0x03});
 
         List<PcapNetworkInterface> list = List.of(mockInterface);
 
         doAnswer(invocation -> {
             PacketListener listener = invocation.getArgument(1);
-            listener.gotPacket(mockPacket);   // simular llegada de paquete
+            listener.gotPacket(mockPacket); // simular llegada de paquete
             return null;
-        }).when(mockHandle).loop(eq(-1), any(PacketListener.class));
+        }).when(mockHandle).loop(anyInt(), any(PacketListener.class));
 
         sniffer.addObserver(mockObserver);
 
-        sniffer.start("eth0", list);
+        sniffer.start("eth0", list, "");
 
         Thread.sleep(50); // darle tiempo al hilo virtual
 
