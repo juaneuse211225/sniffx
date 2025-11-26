@@ -1,12 +1,12 @@
 package com.juaneuse.sniffx.controller;
 
+import com.juaneuse.sniffx.filter.SimpleFilterParser;
 import com.juaneuse.sniffx.model.PacketDetails;
 import com.juaneuse.sniffx.model.PacketInfo;
 import com.juaneuse.sniffx.sniffer.PacketObserver;
 import com.juaneuse.sniffx.sniffer.PacketSniffer;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeFormatterBuilder;
 import java.util.List;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleIntegerProperty;
@@ -27,7 +27,8 @@ import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
-import javafx.scene.control.cell.PropertyValueFactory;
+import javafx.scene.control.TextField;
+import javafx.scene.control.ToggleButton;
 import javafx.scene.layout.AnchorPane;
 import javafx.scene.layout.GridPane;
 import org.pcap4j.core.NotOpenException;
@@ -37,17 +38,16 @@ import org.pcap4j.core.PcapNetworkInterface;
 public class SnifferController implements PacketObserver {
 
     private PacketSniffer packetSniffer;
-    private boolean running = false;
     private List<PcapNetworkInterface> listInterfaces;
     private String interfaceName;
     private final ObservableList<PacketInfo> packetList = FXCollections.observableArrayList();
-    private boolean desplegado = true;
+    private boolean desplegado = false;
 
     @FXML
     private Button btnPaneInfo;
 
     @FXML
-    private Button btnStatus;
+    private ToggleButton btnStatus;
 
     @FXML
     private GridPane gridInfoPacket;
@@ -57,6 +57,9 @@ public class SnifferController implements PacketObserver {
 
     @FXML
     private AnchorPane panelSuperior;
+
+    @FXML
+    private TextField textFilterBpf;
 
     @FXML
     private SplitPane splitPane;
@@ -176,31 +179,11 @@ public class SnifferController implements PacketObserver {
 
     @FXML
     void onTracked(ActionEvent event) {
-        running = !running;
-        if (running) {
-            try {
-                if (interfaceName == null || interfaceName.isEmpty()) {
-                    Alert alert
-                            = new Alert(AlertType.WARNING, "Seleccione una interfaz primero.");
-                    alert.showAndWait();
-                    running = false;
-                    return;
-                }
-                packetList.clear();
-                packetSniffer.start(interfaceName, listInterfaces);
-                btnStatus.setText("Detener");
-            } catch (PcapNativeException pe) {
-                new Alert(AlertType.ERROR, "Error al iniciar captura: " + pe.getMessage()).showAndWait();
-                running = false;
-            }
-
+        if (btnStatus.isSelected()) {
+            packetList.clear();
+            iniciarCapturaConFiltro(textFilterBpf.getText());
         } else {
-            try {
-                packetSniffer.stop();
-                btnStatus.setText("Iniciar");
-            } catch (NotOpenException ex) {
-                new Alert(AlertType.ERROR, "Error al detener captura: " + ex.getMessage()).showAndWait();
-            }
+            detenerCaptura();
         }
     }
 
@@ -210,6 +193,31 @@ public class SnifferController implements PacketObserver {
         splitPane.getDividers().get(0).setPosition(desplegado ? 1.0 : 0.6);
         desplegado = !desplegado;
 
+    }
+
+    @FXML
+    void aplicarFiltro(ActionEvent event) {
+
+        if (btnStatus.isSelected()) {
+            detenerCaptura();
+            packetList.clear();
+            iniciarCapturaConFiltro(textFilterBpf.getText());
+
+        } else {
+            iniciarCapturaConFiltro(textFilterBpf.getText());
+        }
+    }
+
+    @FXML
+    void cleanFilter(ActionEvent event) {
+
+        textFilterBpf.setText("");
+
+        if (btnStatus.isSelected()) {
+            detenerCaptura();
+        }
+
+        iniciarCapturaConFiltro(textFilterBpf.getText());
     }
 
     @Override
@@ -222,6 +230,34 @@ public class SnifferController implements PacketObserver {
         });
     }
 
+    private void iniciarCapturaConFiltro(String filtro) {
+        if (interfaceName == null || interfaceName.isEmpty()) {
+            new Alert(AlertType.WARNING, "Seleccione una interfaz primero.").showAndWait();
+            return;
+        }
+
+        try {
+            String bpf = SimpleFilterParser.parse(filtro);
+            packetSniffer.start(interfaceName, listInterfaces, bpf);
+            btnStatus.setText("Detener");
+            btnStatus.setSelected(true);
+
+        } catch (PcapNativeException | NotOpenException ex) {
+            new Alert(AlertType.ERROR, "Error al iniciar captura: " + ex.getMessage()).showAndWait();
+            btnStatus.setSelected(false);
+        }
+    }
+
+    private void detenerCaptura() {
+        try {
+            packetSniffer.stop();
+        } catch (NotOpenException ex) {
+            new Alert(AlertType.ERROR, "Error al detener captura: " + ex.getMessage()).showAndWait();
+        }
+        btnStatus.setSelected(false);
+        btnStatus.setText("Iniciar");
+    }
+
     private void mostrarDetalles(PacketInfo info) {
 
         // Limpiar panel
@@ -231,41 +267,33 @@ public class SnifferController implements PacketObserver {
 
         int row = 0;
 
-        if (d.getTimestamp() != null) {
+        if (d.getTimestamp() != null) 
             addDetail("Timestamp", d.getTimestamp().toString(), row++);
-        }
-
-        if (d.getProtocol() != null) {
+        
+        if (d.getProtocol() != null) 
             addDetail("Protocolo", d.getProtocol(), row++);
-        }
-
-        if (d.getIpVersion() != null) {
+        
+        if (d.getIpVersion() != null) 
             addDetail("Versión IP", d.getIpVersion(), row++);
-        }
-
-        if (d.getSrcIp() != null) {
+        
+        if (d.getSrcIp() != null) 
             addDetail("IP Origen", d.getSrcIp(), row++);
-        }
-
-        if (d.getDstIp() != null) {
+        
+        if (d.getDstIp() != null) 
             addDetail("IP Destino", d.getDstIp(), row++);
-        }
-
-        if (d.getSrcPort() != null) {
+        
+        if (d.getSrcPort() != null) 
             addDetail("Puerto Origen", d.getSrcPort().toString(), row++);
-        }
-
-        if (d.getDstPort() != null) {
+        
+        if (d.getDstPort() != null) 
             addDetail("Puerto Destino", d.getDstPort().toString(), row++);
-        }
-
-        if (d.getTcpFlags() != null) {
+        
+        if (d.getTcpFlags() != null) 
             addDetail("Flags TCP", d.getTcpFlags(), row++);
-        }
-
-        if (d.getHexDump() != null) {
+        
+        if (d.getHexDump() != null) 
             addHexDump("Hex Dump", d.getHexDump(), row++);
-        }
+        
     }
 
     private void addDetail(String label, String value, int row) {
