@@ -40,7 +40,7 @@ public class SnifferController implements PacketObserver {
     private PacketSniffer packetSniffer;
     private List<PcapNetworkInterface> listInterfaces;
     private String interfaceName;
-    private final ObservableList<PacketInfo> packetList = FXCollections.observableArrayList();
+    private final ObservableList<PacketDetails> packetList = FXCollections.observableArrayList();
     private boolean desplegado = false;
 
     @FXML
@@ -65,44 +65,47 @@ public class SnifferController implements PacketObserver {
     private SplitPane splitPane;
 
     @FXML
-    private TableColumn<PacketInfo, Integer> columnLegth;
+    private TableColumn<PacketDetails, Integer> columnLegth;
 
     @FXML
-    private TableColumn<PacketInfo, String> columnProtocol;
+    private TableColumn<PacketDetails, String> columnProtocol;
 
     @FXML
-    private TableColumn<PacketInfo, LocalDateTime> columnTimestamp;
+    private TableColumn<PacketDetails, LocalDateTime> columnTimestamp;
 
     @FXML
-    private TableColumn<PacketInfo, String> ColumnDest;
+    private TableColumn<PacketDetails, String> ColumnDest;
 
     @FXML
-    private TableColumn<PacketInfo, String> ColumnSour;
+    private TableColumn<PacketDetails, String> ColumnSour;
 
     @FXML
     private ComboBox<String> comboInterfaces;
 
     @FXML
-    private TableView<PacketInfo> tablePackets;
+    private TableView<PacketDetails> tablePackets;
 
     @FXML
     void initialize() {
-        columnLegth.setCellValueFactory(cell -> 
-                new SimpleIntegerProperty(cell.getValue().getParsed().length).asObject()
+        columnLegth.setCellValueFactory(cell
+                -> new SimpleIntegerProperty(cell.getValue().getLength()).asObject()
         );
-        columnProtocol.setCellValueFactory(cell -> 
-                new SimpleStringProperty(cell.getValue().getParsed().protocol)
+
+        columnProtocol.setCellValueFactory(cell
+                -> new SimpleStringProperty(cell.getValue().getProtocol())
         );
-        ColumnSour.setCellValueFactory(cell -> 
-                new SimpleStringProperty(cell.getValue().getParsed().srcIp)
+
+        ColumnSour.setCellValueFactory(cell
+                -> new SimpleStringProperty(cell.getValue().getSrcIp())
         );
-        ColumnDest.setCellValueFactory(cell -> 
-                new SimpleStringProperty(cell.getValue().getParsed().dstIp)
+
+        ColumnDest.setCellValueFactory(cell
+                -> new SimpleStringProperty(cell.getValue().getDstIp())
         );
 
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM/dd - HH:mm:ss.SSS");
 
-        columnTimestamp.setCellFactory(column -> new TableCell<PacketInfo, LocalDateTime>() {
+        columnTimestamp.setCellFactory(column -> new TableCell<PacketDetails, LocalDateTime>() {
             @Override
             protected void updateItem(LocalDateTime item, boolean empty) {
                 super.updateItem(item, empty);
@@ -113,12 +116,13 @@ public class SnifferController implements PacketObserver {
                 }
             }
         });
-        columnTimestamp.setCellValueFactory(cell -> 
-                new SimpleObjectProperty<>(cell.getValue().getParsed().timestamp)
+
+        columnTimestamp.setCellValueFactory(cell
+                -> new SimpleObjectProperty<>(cell.getValue().getTimestamp())
         );
 
         //  Asignar SortedList a TableView
-        SortedList<PacketInfo> sortedList = new SortedList<>(packetList);
+        SortedList<PacketDetails> sortedList = new SortedList<>(packetList);
         sortedList.comparatorProperty().bind(tablePackets.comparatorProperty());
 
         tablePackets.setItems(sortedList);
@@ -223,7 +227,8 @@ public class SnifferController implements PacketObserver {
     @Override
     public void onPacketReceived(PacketInfo packet) {
         Platform.runLater(() -> {
-            packetList.add(packet);
+            PacketDetails details = PacketDetails.from(packet);
+            packetList.add(details);
             if (packetList.size() > 100) {
                 packetList.remove(0);
             }
@@ -258,42 +263,49 @@ public class SnifferController implements PacketObserver {
         btnStatus.setText("Iniciar");
     }
 
-    private void mostrarDetalles(PacketInfo info) {
+    private void mostrarDetalles(PacketDetails d) {
 
         // Limpiar panel
         gridInfoPacket.getChildren().clear();
 
-        PacketDetails d = PacketDetails.from(info);
-
         int row = 0;
 
-        if (d.getTimestamp() != null) 
+        if (d.getTimestamp() != null) {
             addDetail("Timestamp", d.getTimestamp().toString(), row++);
-        
-        if (d.getProtocol() != null) 
+        }
+
+        if (d.getProtocol() != null) {
             addDetail("Protocolo", d.getProtocol(), row++);
-        
-        if (d.getIpVersion() != null) 
+        }
+
+        if (d.getIpVersion() != null) {
             addDetail("Versión IP", d.getIpVersion(), row++);
-        
-        if (d.getSrcIp() != null) 
+        }
+
+        if (d.getSrcIp() != null) {
             addDetail("IP Origen", d.getSrcIp(), row++);
-        
-        if (d.getDstIp() != null) 
+        }
+
+        if (d.getDstIp() != null) {
             addDetail("IP Destino", d.getDstIp(), row++);
-        
-        if (d.getSrcPort() != null) 
+        }
+
+        if (d.getSrcPort() != null) {
             addDetail("Puerto Origen", d.getSrcPort().toString(), row++);
-        
-        if (d.getDstPort() != null) 
+        }
+
+        if (d.getDstPort() != null) {
             addDetail("Puerto Destino", d.getDstPort().toString(), row++);
-        
-        if (d.getTcpFlags() != null) 
+        }
+
+        if (d.getTcpFlags() != null) {
             addDetail("Flags TCP", d.getTcpFlags(), row++);
-        
-        if (d.getHexDump() != null) 
+        }
+
+        if (d.getHexDump() != null) {
             addHexDump("Hex Dump", d.getHexDump(), row++);
-        
+        }
+
     }
 
     private void addDetail(String label, String value, int row) {
