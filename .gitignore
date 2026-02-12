@@ -29,7 +29,7 @@ Thumbs.db
 *.properties.local
 
 # Archivos generados por NetBeans
-nbproject/private/
+nbproject
 build/
 dist/
 nb-configuration.xml
