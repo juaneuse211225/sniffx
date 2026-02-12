@@ -3,7 +3,6 @@ package com.juaneuse.sniffx.dissector;
 import com.juaneuse.sniffx.model.SniffContext;
 import org.pcap4j.packet.IpV4Packet;
 import org.pcap4j.packet.Packet;
-import org.pcap4j.packet.namednumber.IpNumber;
 
 /**
  *

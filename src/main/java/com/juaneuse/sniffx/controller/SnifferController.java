@@ -3,15 +3,12 @@ package com.juaneuse.sniffx.controller;
 import com.juaneuse.sniffx.filter.SimpleFilterParser;
 import com.juaneuse.sniffx.model.PacketDetails;
 import com.juaneuse.sniffx.model.PacketInfo;
+import com.juaneuse.sniffx.runtime.SnifferState;
 import com.juaneuse.sniffx.sniffer.PacketObserver;
-import com.juaneuse.sniffx.sniffer.PacketSniffer;
+import com.juaneuse.sniffx.runtime.ErrorState;
+import com.juaneuse.sniffx.runtime.SnifferStateObserver;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.List;
 import javafx.application.Platform;
-import javafx.beans.property.SimpleIntegerProperty;
-import javafx.beans.property.SimpleObjectProperty;
-import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.collections.transformation.SortedList;
@@ -19,330 +16,225 @@ import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
-import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
-import javafx.scene.control.Label;
 import javafx.scene.control.SplitPane;
-import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
-import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.control.ToggleButton;
-import javafx.scene.layout.AnchorPane;
 import javafx.scene.layout.GridPane;
-import org.pcap4j.core.NotOpenException;
-import org.pcap4j.core.PcapNativeException;
-import org.pcap4j.core.PcapNetworkInterface;
 
-public class SnifferController implements PacketObserver {
+public class SnifferController implements PacketObserver, SnifferStateObserver {
 
-    private PacketSniffer packetSniffer;
-    private List<PcapNetworkInterface> listInterfaces;
-    private String interfaceName;
+    private final SniffingService sniffService = new SniffingService();
+
     private final ObservableList<PacketDetails> packetList = FXCollections.observableArrayList();
     private boolean desplegado = false;
+    private PacketDetailRenderer detailRenderer;
 
-    @FXML
-    private Button btnPaneInfo;
-
+    // --- Componentes FXML ---
     @FXML
     private ToggleButton btnStatus;
-
     @FXML
     private GridPane gridInfoPacket;
-
-    @FXML
-    private AnchorPane panelInferior;
-
-    @FXML
-    private AnchorPane panelSuperior;
-
     @FXML
     private TextField textFilterBpf;
-
     @FXML
     private SplitPane splitPane;
+    @FXML
+    private TableView<PacketDetails> tablePackets;
+    @FXML
+    private ComboBox<String> comboInterfaces;
 
+    // Columnas
     @FXML
     private TableColumn<PacketDetails, Integer> columnLegth;
-
     @FXML
     private TableColumn<PacketDetails, String> columnProtocol;
-
     @FXML
     private TableColumn<PacketDetails, LocalDateTime> columnTimestamp;
-
     @FXML
     private TableColumn<PacketDetails, String> ColumnDest;
-
     @FXML
     private TableColumn<PacketDetails, String> ColumnSour;
 
     @FXML
-    private ComboBox<String> comboInterfaces;
-
-    @FXML
-    private TableView<PacketDetails> tablePackets;
-
-    @FXML
     void initialize() {
-        columnLegth.setCellValueFactory(cell
-                -> new SimpleIntegerProperty(cell.getValue().getLength()).asObject()
-        );
+        // Inicializar Componentes Visuales delegando la lógica
+        PacketTableManager.configure(tablePackets, columnLegth, columnProtocol, ColumnSour, ColumnDest, columnTimestamp);
+        this.detailRenderer = new PacketDetailRenderer(gridInfoPacket);
 
-        columnProtocol.setCellValueFactory(cell
-                -> new SimpleStringProperty(cell.getValue().getProtocol())
-        );
+        // Configurar Binding de Datos
+        SortedList<PacketDetails> sortedData = new SortedList<>(packetList);
+        sortedData.comparatorProperty().bind(tablePackets.comparatorProperty());
+        tablePackets.setItems(sortedData);
 
-        ColumnSour.setCellValueFactory(cell
-                -> new SimpleStringProperty(cell.getValue().getSrcIp())
-        );
+        // Listeners de UI
+        setupListeners();
 
-        ColumnDest.setCellValueFactory(cell
-                -> new SimpleStringProperty(cell.getValue().getDstIp())
-        );
-
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM/dd - HH:mm:ss.SSS");
-
-        columnTimestamp.setCellFactory(column -> new TableCell<PacketDetails, LocalDateTime>() {
-            @Override
-            protected void updateItem(LocalDateTime item, boolean empty) {
-                super.updateItem(item, empty);
-                if (empty || item == null) {
-                    setText(null);
-                } else {
-                    setText(item.format(formatter));
-                }
-            }
-        });
-
-        columnTimestamp.setCellValueFactory(cell
-                -> new SimpleObjectProperty<>(cell.getValue().getTimestamp())
-        );
-
-        //  Asignar SortedList a TableView
-        SortedList<PacketDetails> sortedList = new SortedList<>(packetList);
-        sortedList.comparatorProperty().bind(tablePackets.comparatorProperty());
-
-        tablePackets.setItems(sortedList);
-
-        //  suscribirse al observador
-        packetSniffer = new PacketSniffer();
-        packetSniffer.addObserver(this);
-
+        // Configurar Servicios
         loadInterfacesCombo();
+        sniffService.addPacketObserver(this);
+        sniffService.addStateObserver(this);
 
-        double max = 0.40;
-
-        splitPane.getDividers().get(0).positionProperty().addListener((obs, oldPos, newPos) -> {
-            if (newPos.doubleValue() < max) {
-                splitPane.getDividers().get(0).setPosition(max);
-            }
-        });
-
-        splitPane.getDividers().get(0).positionProperty().addListener((obs, oldPos, newPos) -> {
-            final double SNAP_THRESHOLD = 0.85;
-            double currentPosition = newPos.doubleValue();
-
-            if (currentPosition > SNAP_THRESHOLD) {
-                splitPane.getDividers().get(0).setPosition(1.0);
-                desplegado = false;
-            } else {
-                desplegado = true;
-            }
-        });
-
-        tablePackets.getSelectionModel().selectedItemProperty().addListener((obs, oldSel, newSel) -> {
-            if (newSel != null) {
-                mostrarDetalles(newSel);
-            }
-        });
-
+        // Configuración inicial
+        textFilterBpf.setPromptText("Ej: tcp @192.168.1.1 80-443");
+        configureService();
     }
 
-    private void loadInterfacesCombo() {
-        ObservableList<String> ListInterfaceName = FXCollections.observableArrayList();
-        try {
-            listInterfaces = packetSniffer.listInterfaces();
-
-            for (PcapNetworkInterface networkInterface : listInterfaces) {
-                ListInterfaceName.add(networkInterface.getName());
+    private void setupListeners() {
+        // Listener de Selección en Tabla
+        tablePackets.getSelectionModel().selectedItemProperty().addListener((obs, old, selected) -> {
+            if (selected != null) {
+                detailRenderer.render(selected);
             }
-        } catch (PcapNativeException ex) {
-            System.out.println(ex.getMessage());
-        }
+        });
 
-        comboInterfaces.setItems(ListInterfaceName);
-    }
+        // Listener del SplitPane (Responsividad básica)
+        splitPane.getDividers().get(0).positionProperty().addListener((obs, oldVal, newVal) -> {
+            double pos = newVal.doubleValue();
+            // Evitar que el panel sea muy pequeño
+            if (pos < 0.40) {
+                splitPane.setDividerPosition(0, 0.40);
+            }
 
-    @FXML
-    void onInterfaceSelected(ActionEvent event) {
-        interfaceName = comboInterfaces.getValue();
+            // Detectar si se colapsó manualmente
+            desplegado = (pos <= 0.85);
+        });
     }
 
     @FXML
     void onTracked(ActionEvent event) {
+        // El botón es Toggle, así que actuamos según su estado visual
         if (btnStatus.isSelected()) {
-            packetList.clear();
-            iniciarCapturaConFiltro(textFilterBpf.getText());
+            ejecutarCaptura();
         } else {
-            detenerCaptura();
+            sniffService.stopCapture();
+        }
+    }
+
+    @FXML
+    void aplicarFiltro(ActionEvent event) {
+        // Al aplicar filtro, reiniciamos la captura
+        ejecutarCaptura();
+    }
+
+    @FXML
+    void cleanFilter(ActionEvent event) {
+        textFilterBpf.clear();
+        ejecutarCaptura();
+    }
+
+    @FXML
+    void onInterfaceSelected(ActionEvent event) {
+        // Si hay una captura corriendo y cambiamos interfaz, reiniciamos
+        if (btnStatus.isSelected()) {
+            ejecutarCaptura();
         }
     }
 
     @FXML
     void onView(ActionEvent event) {
-
-        splitPane.getDividers().get(0).setPosition(desplegado ? 1.0 : 0.6);
+        // Toggle simple del panel lateral
+        splitPane.setDividerPosition(0, desplegado ? 1.0 : 0.6);
         desplegado = !desplegado;
-
     }
 
-    @FXML
-    void aplicarFiltro(ActionEvent event) {
+    private void ejecutarCaptura() {
+        String interfaz = comboInterfaces.getValue();
 
-        if (btnStatus.isSelected()) {
-            detenerCaptura();
-            packetList.clear();
-            iniciarCapturaConFiltro(textFilterBpf.getText());
-
-        } else {
-            iniciarCapturaConFiltro(textFilterBpf.getText());
+        if (interfaz == null || interfaz.isEmpty()) {
+            btnStatus.setSelected(false);
+            new Alert(AlertType.WARNING, "Por favor, seleccione una interfaz de red.").showAndWait();
+            return;
         }
+
+        // Limpiamos datos viejos
+        packetList.clear();
+        detailRenderer.clear();
+
+        // Delegamos al servicio
+        String bpf = SimpleFilterParser.parse(textFilterBpf.getText());
+        sniffService.startCapture(interfaz, bpf);
     }
 
-    @FXML
-    void cleanFilter(ActionEvent event) {
-
-        textFilterBpf.setText("");
-
-        if (btnStatus.isSelected()) {
-            detenerCaptura();
+    private void loadInterfacesCombo() {
+        // Aseguramos que la lista sea Observable para JavaFX
+        comboInterfaces.setItems(FXCollections.observableArrayList(sniffService.getInterfaceNames()));
+        if (!comboInterfaces.getItems().isEmpty()) {
+            comboInterfaces.getSelectionModel().selectFirst();
         }
-
-        iniciarCapturaConFiltro(textFilterBpf.getText());
     }
 
     @Override
     public void onPacketReceived(PacketInfo packet) {
+        // Siempre usar Platform.runLater para modificar la ObservableList que está atada a la UI
         Platform.runLater(() -> {
-            PacketDetails details = PacketDetails.from(packet);
-            packetList.add(details);
+            packetList.add(PacketDetails.from(packet));
+
+            // Mantener la lista en un tamaño manejable para no saturar la memoria
             if (packetList.size() > 100) {
                 packetList.remove(0);
             }
         });
     }
 
+    @Override
+    public void onStateChanged(SnifferState newState) {
+        Platform.runLater(() -> {
+            // Manejo de Error
+            if (newState instanceof ErrorState error) {
+                mostrarAlertaError(error.getMessage());
+                // Forzamos estado visual de "Detenido"
+                actualizarBotonEstado(false);
+                return;
+            }
+
+            // Actualización visual según estado
+            boolean isRunning = newState.name().equalsIgnoreCase("RUNNING");
+            actualizarBotonEstado(isRunning);
+        });
+    }
+
     private void iniciarCapturaConFiltro(String filtro) {
-        if (interfaceName == null || interfaceName.isEmpty()) {
+        String selectedInterface = comboInterfaces.getValue();
+
+        if (selectedInterface == null || selectedInterface.isEmpty()) {
+            // Si no hay interfaz, revertimos el botón visualmente y avisamos
+            btnStatus.setSelected(false);
             new Alert(AlertType.WARNING, "Seleccione una interfaz primero.").showAndWait();
             return;
         }
 
-        try {
-            String bpf = SimpleFilterParser.parse(filtro);
-            packetSniffer.start(interfaceName, listInterfaces, bpf);
-            btnStatus.setText("Detener");
-            btnStatus.setSelected(true);
-
-        } catch (PcapNativeException | NotOpenException ex) {
-            new Alert(AlertType.ERROR, "Error al iniciar captura: " + ex.getMessage()).showAndWait();
-            btnStatus.setSelected(false);
-        }
+        packetList.clear();
+        // El servicio ahora usa el RuntimeContext internamente
+        sniffService.startCapture(selectedInterface, SimpleFilterParser.parse(filtro));
     }
 
     private void detenerCaptura() {
-        try {
-            packetSniffer.stop();
-        } catch (NotOpenException ex) {
-            new Alert(AlertType.ERROR, "Error al detener captura: " + ex.getMessage()).showAndWait();
-        }
+        sniffService.stopCapture();
         btnStatus.setSelected(false);
         btnStatus.setText("Iniciar");
     }
 
-    private void mostrarDetalles(PacketDetails d) {
-
-        // Limpiar panel
-        gridInfoPacket.getChildren().clear();
-
-        int row = 0;
-
-        if (d.getTimestamp() != null) {
-            addDetail("Timestamp", d.getTimestamp().toString(), row++);
-        }
-
-        if (d.getProtocol() != null) {
-            addDetail("Protocolo", d.getProtocol(), row++);
-        }
-
-        if (d.getIpVersion() != null) {
-            addDetail("Versión IP", d.getIpVersion(), row++);
-        }
-
-        if (d.getSrcIp() != null) {
-            addDetail("IP Origen", d.getSrcIp(), row++);
-        }
-
-        if (d.getDstIp() != null) {
-            addDetail("IP Destino", d.getDstIp(), row++);
-        }
-
-        if (d.getSrcPort() != null) {
-            addDetail("Puerto Origen", d.getSrcPort().toString(), row++);
-        }
-
-        if (d.getDstPort() != null) {
-            addDetail("Puerto Destino", d.getDstPort().toString(), row++);
-        }
-
-        if (d.getTcpFlags() != null) {
-            addDetail("Flags TCP", d.getTcpFlags(), row++);
-        }
-
-        if (d.getHexDump() != null) {
-            addHexDump("Hex Dump", d.getHexDump(), row++);
-        }
-
+    private void configureService() {
+        sniffService.addPacketObserver(this);
+        sniffService.addStateObserver(this); // Escuchar cambios de estado
     }
 
-    private void addDetail(String label, String value, int row) {
-        Label key = new Label(label + ":");
-        Label val = new Label(value);
+    private void actualizarBotonEstado(boolean capturing) {
+        btnStatus.setSelected(capturing);
+        btnStatus.setText(capturing ? "Detener" : "Iniciar");
 
-        key.setStyle("-fx-font-weight: bold;");
-        val.setStyle("-fx-font-family: 'Consolas';");
-
-        gridInfoPacket.addRow(row, key, val);
+        // Deshabilitar controles sensibles durante la captura si lo deseas
+        comboInterfaces.setDisable(capturing);
     }
 
-    private void addHexDump(String label, String value, int row) {
-
-        Label key = new Label(label + ":");
-        key.setStyle("-fx-font-weight: bold;");
-
-        TextArea area = new TextArea(value);
-        area.setEditable(false);
-        area.setWrapText(false);
-        area.setPrefWidth(450);
-        area.setMinWidth(450);
-        area.setPrefRowCount(10);
-        area.setStyle("-fx-font-family: 'Consolas'; -fx-font-size: 12px;");
-
-        // Copiar al portapapeles al hacer click
-        area.setOnMouseClicked(e -> {
-            javafx.scene.input.Clipboard clipboard = javafx.scene.input.Clipboard.getSystemClipboard();
-            javafx.scene.input.ClipboardContent content = new javafx.scene.input.ClipboardContent();
-            content.putString(value);
-            clipboard.setContent(content);
-
-            System.out.println("HexDump copiado al portapapeles.");
-        });
-
-        gridInfoPacket.add(key, 0, row);
-        gridInfoPacket.add(area, 1, row);
+    private void mostrarAlertaError(String mensaje) {
+        Alert alert = new Alert(AlertType.ERROR);
+        alert.setTitle("Error de Captura");
+        alert.setHeaderText("El motor de sniffing se ha detenido");
+        alert.setContentText(mensaje);
+        alert.showAndWait();
     }
-
 }
