@@ -1,8 +1,5 @@
 package com.juaneuse.sniffx.runtime;
 
-import org.pcap4j.core.NotOpenException;
-import org.pcap4j.core.PcapNativeException;
-
 /**
  *
  * @author juaneuse
@@ -13,9 +10,9 @@ public class StoppedState implements SnifferState {
     public void start(SnifferRuntimeContext ctx) {
         SnifferConfig c = ctx.config();
         ctx.sniffer().start(
-            c.interfaceName(),
-            c.interfaces(),
-            c.bpfFilter()
+                c.interfaceName(),
+                c.interfaces(),
+                c.bpfFilter()
         );
         ctx.setState(new RunningState());
     }
