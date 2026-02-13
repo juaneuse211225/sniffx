@@ -49,8 +49,10 @@ Si quieres aportar mejoras, por favor crea un fork y envía tu PR contra la rama
 
 ## Licencia
 
-**Por definir**. Es probable que en el futuro el proyecto adopte la licencia MIT.
+Este proyecto está licenciado bajo **MIT License**. Consulta el archivo [`LICENSE`](./LICENSE) para el texto completo.
+
+La licencia MIT permite usar, modificar y distribuir este software (incluyendo usos comerciales), siempre que se conserve el aviso de copyright y licencia.
 
 ---
 
-*Proyecto desarrollado por juaneuse211225 inspirado en la funcionalidad de Wireshark. No utiliza ni comparte código de Wireshark.*
+*Proyecto desarrollado por Juan E. Euse inspirado en la funcionalidad de Wireshark. No utiliza ni comparte código de Wireshark.*
