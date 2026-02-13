@@ -119,6 +119,8 @@
       <ToolBar prefHeight="40.0" prefWidth="200.0" BorderPane.alignment="CENTER">
          <items>
             <Button fx:id="btnPaneInfo" mnemonicParsing="false" onAction="#onView" text="Info" />
+            <Separator orientation="VERTICAL" />
+            <Label fx:id="labelQueueStatus" text="Estado de cola: normal" textFill="#2e7d32" />
          </items>
       </ToolBar>
    </bottom>
