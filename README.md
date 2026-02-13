@@ -97,6 +97,28 @@ Ejecuta la app en una terminal con privilegios de administrador cuando sea neces
 4. Selecciona paquetes para ver detalle y hexdump.
 5. Presiona **Detener** para finalizar la captura.
 
+## Capturas de pantalla
+
+> Coloca las imágenes en `docs/images/` con los nombres indicados para que se rendericen en GitHub.
+
+### 1) Vista principal de captura
+
+![Vista principal de captura](./docs/images/sniffx-main-view.png)
+
+<sub>Panel principal durante una captura activa, mostrando tabla de paquetes con timestamp, longitud, protocolo y direcciones origen/destino.</sub>
+
+### 2) Filtro aplicado + detalle de paquete
+
+![Filtro aplicado y detalle de paquete](./docs/images/sniffx-filter-detail.png)
+
+<sub>Ejemplo de filtro simple (`icmp @8.8.8.8`) y visualización del detalle del paquete seleccionado con hexdump.</sub>
+
+### 3) Detalle extendido (IPv6/UDP)
+
+![Detalle extendido de paquete IPv6/UDP](./docs/images/sniffx-ipv6-udp-detail.png)
+
+<sub>Detalle enriquecido del paquete (versión IP, puertos origen/destino y volcado hexadecimal) para análisis rápido en la UI.</sub>
+
 ## Contribuir
 
 Si quieres aportar mejoras, crea un fork y abre un PR contra la rama `develop`. Revisa también la guía en [`CONTRIBUTING.md`](./CONTRIBUTING.md).
