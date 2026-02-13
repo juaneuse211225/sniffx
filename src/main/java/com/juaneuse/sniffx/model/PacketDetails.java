@@ -52,5 +52,30 @@ public class PacketDetails {
 
         return d;
     }
-}
 
+    public static PacketDetails fromStorage(
+            LocalDateTime timestamp,
+            String protocol,
+            String ipVersion,
+            String srcIp,
+            String dstIp,
+            Integer srcPort,
+            Integer dstPort,
+            Integer length,
+            String tcpFlags,
+            String hexDump
+    ) {
+        PacketDetails d = new PacketDetails();
+        d.timestamp = timestamp;
+        d.protocol = protocol;
+        d.ipVersion = ipVersion;
+        d.srcIp = srcIp;
+        d.dstIp = dstIp;
+        d.srcPort = srcPort;
+        d.dstPort = dstPort;
+        d.length = length;
+        d.tcpFlags = tcpFlags;
+        d.hexDump = hexDump;
+        return d;
+    }
+}
