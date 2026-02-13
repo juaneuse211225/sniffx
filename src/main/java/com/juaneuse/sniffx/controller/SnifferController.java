@@ -10,11 +10,6 @@ import com.juaneuse.sniffx.runtime.ErrorState;
 import com.juaneuse.sniffx.runtime.SnifferStateObserver;
 import java.io.IOException;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Queue;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -38,21 +33,21 @@ import javafx.util.Duration;
 
 public class SnifferController implements PacketObserver, SnifferStateObserver {
 
-    private static final int MAX_UI_PACKETS = 100;
-    private static final int DRAIN_BATCH_SIZE = 120;
-    private static final int MAX_QUEUE_SIZE = 4_000;
-    private static final int DRAIN_INTERVAL_MS = 50;
-
     private final SniffingService sniffService = new SniffingService();
     private final ObservableList<PacketDetails> packetList = FXCollections.observableArrayList();
-    private static final int MAX_IN_MEMORY = 100;
-    private static final int PAGE_SIZE = 30;
     private final CapturePagingManager capturePagingManager =
-            new CapturePagingManager(new CaptureStorageService(), packetList, MAX_IN_MEMORY, PAGE_SIZE);
-    private final Queue<PacketDetails> pendingPackets = new ConcurrentLinkedQueue<>();
-    private final AtomicInteger pendingCount = new AtomicInteger();
+            new CapturePagingManager(new CaptureStorageService(), packetList, SnifferUiConfig.MAX_IN_MEMORY, SnifferUiConfig.PAGE_SIZE);
+    private final PacketBacklogBuffer packetBacklogBuffer = new PacketBacklogBuffer();
+    private final PacketUiDrainManager packetUiDrainManager =
+            new PacketUiDrainManager(
+                    packetBacklogBuffer,
+                    packetList,
+                    SnifferUiConfig.DRAIN_BATCH_SIZE,
+                    SnifferUiConfig.MAX_UI_PACKETS,
+                    SnifferUiConfig.MAX_QUEUE_SIZE
+            );
     private final Timeline packetDrainTimeline = new Timeline(
-            new KeyFrame(Duration.millis(DRAIN_INTERVAL_MS), event -> drainPendingPackets())
+            new KeyFrame(Duration.millis(SnifferUiConfig.DRAIN_INTERVAL_MS), event -> drainPendingPackets())
     );
     private boolean desplegado = false;
     private boolean overloadWarningVisible = false;
@@ -195,9 +190,7 @@ public class SnifferController implements PacketObserver, SnifferStateObserver {
 
         // Limpiamos datos viejos
         capturePagingManager.resetWindow();
-        packetList.clear();
-        pendingPackets.clear();
-        pendingCount.set(0);
+        packetUiDrainManager.reset();
         updateQueueStatus(false);
         detailRenderer.clear();
 
@@ -232,16 +225,9 @@ public class SnifferController implements PacketObserver, SnifferStateObserver {
                 capturePagingManager.append(details);
             } catch (IOException e) {
                 mostrarAlertaError("Error persistiendo paquete: " + e.getMessage());
-        pendingPackets.offer(PacketDetails.from(packet));
-        int currentSize = pendingCount.incrementAndGet();
-
-        while (currentSize > MAX_QUEUE_SIZE) {
-            PacketDetails dropped = pendingPackets.poll();
-            if (dropped == null) {
-                break;
+                packetUiDrainManager.enqueueFallback(details);
             }
-            currentSize = pendingCount.decrementAndGet();
-        }
+        });
     }
 
     @Override
@@ -313,25 +299,8 @@ public class SnifferController implements PacketObserver, SnifferStateObserver {
     }
 
     private void drainPendingPackets() {
-        List<PacketDetails> batch = new ArrayList<>(DRAIN_BATCH_SIZE);
-        for (int i = 0; i < DRAIN_BATCH_SIZE; i++) {
-            PacketDetails packet = pendingPackets.poll();
-            if (packet == null) {
-                break;
-            }
-            pendingCount.decrementAndGet();
-            batch.add(packet);
-        }
-
-        if (!batch.isEmpty()) {
-            packetList.addAll(batch);
-            int overflow = packetList.size() - MAX_UI_PACKETS;
-            if (overflow > 0) {
-                packetList.remove(0, overflow);
-            }
-        }
-
-        updateQueueStatus(pendingCount.get() > MAX_QUEUE_SIZE / 2);
+        boolean overloaded = packetUiDrainManager.drainPendingPackets();
+        updateQueueStatus(overloaded);
     }
 
     private void updateQueueStatus(boolean overloaded) {
@@ -346,7 +315,7 @@ public class SnifferController implements PacketObserver, SnifferStateObserver {
             return;
         }
 
-        if (overloadWarningVisible || pendingCount.get() == 0) {
+        if (overloadWarningVisible || packetUiDrainManager.isQueueEmpty()) {
             labelQueueStatus.setText("Estado de cola: normal");
             labelQueueStatus.setStyle("-fx-text-fill: #2e7d32;");
             overloadWarningVisible = false;
