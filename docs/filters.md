@@ -1,66 +1,70 @@
 # Sintaxis de filtros soportada
 
-Este documento resume la gramática implementada por `filter/SimpleFilterParser.java`.
+Este documento resume la gramática implementada por `filter/BpfFilterBuilder.java`.
 
-## Tokens soportados
+## Objetivo
 
-### 1) Protocolo
+`BpfFilterBuilder` permite dos estilos de entrada:
 
-Reconoce (case-insensitive):
+1. **BPF estándar** (se conserva tal cual):
+   - `tcp and port 443`
+   - `(tcp or udp) and src net 192.168.0.0/16`
+2. **Alias amigables de SniffX** (se traducen a BPF):
+   - `@8.8.8.8` -> `host 8.8.8.8`
+   - `src:@10.0.0.5` -> `src host 10.0.0.5`
+   - `dst:443` -> `dst port 443`
 
-- `tcp`
-- `udp`
-- `icmp`
-- `arp`
-- `ip`
+## Alias soportados
 
-Salida BPF: se emite como el literal en minúsculas.
+### Host
 
----
+- `@IP_O_HOST` -> `host IP_O_HOST`
+- `src:@IP_O_HOST` -> `src host IP_O_HOST`
+- `dst:@IP_O_HOST` -> `dst host IP_O_HOST`
 
-### 2) Host
+### Puertos
 
-- Host genérico: `@IP` -> `host IP`
-- Host origen: `src:@IP` -> `src host IP`
-- Host destino: `dst:@IP` -> `dst host IP`
+- `src:80` -> `src port 80`
+- `dst:443` -> `dst port 443`
+- `src:1000-2000` -> `src portrange 1000-2000`
+- `dst:1000-2000` -> `dst portrange 1000-2000`
+- `ports:80,443,1000-2000` -> `(port 80 or port 443 or portrange 1000-2000)`
 
-> Nota: si se combinan varias formas de host en una misma entrada, el parser conserva la última que encuentre.
+## Operadores y expresiones avanzadas
 
----
+Se admiten operadores booleanos y agrupaciones de BPF:
 
-### 3) Puerto / rango
+- `and`
+- `or`
+- `not`
+- paréntesis: `(` `)`
 
-- Puerto simple: `80` -> `port 80`
-- Rango: `1000-2000` -> `portrange 1000-2000`
+También se admiten primitivas habituales de BPF como:
 
-> Nota: igual que host/protocolo, si aparecen varios puertos/rangos, prevalece el último token válido detectado.
+- `host`, `src host`, `dst host`
+- `port`, `src port`, `dst port`, `portrange`
+- `net`, `proto`, `ip`, `ip6`, `tcp`, `udp`, `icmp`, `icmp6`, `arp`
 
-## Reglas de composición
+## Validaciones
 
-El parser construye BPF en este orden:
+El builder valida:
 
-1. Protocolo
-2. Puerto o rango
-3. Host
+1. **Entrada vacía** -> retorna cadena vacía (`""`).
+2. **Paréntesis balanceados** -> si no, lanza `IllegalArgumentException`.
+3. **Tokens inválidos** -> si encuentra un token no soportado, lanza `IllegalArgumentException`.
 
-Uniendo cada bloque con `and` cuando corresponda.
+En la UI (`SnifferController`), estos errores se muestran como alerta para evitar iniciar una captura con filtro inválido.
 
-## Ejemplos de entrada y BPF resultante
+## Ejemplos
 
 | Input usuario | BPF generado |
 |---|---|
-| `tcp` | `tcp` |
-| `udp 53` | `udp and port 53` |
-| `icmp @8.8.8.8` | `icmp and host 8.8.8.8` |
-| `tcp src:@192.168.1.10 443` | `tcp and port 443 and src host 192.168.1.10` |
-| `udp dst:@10.0.0.5 1000-2000` | `udp and portrange 1000-2000 and dst host 10.0.0.5` |
-| `arp @192.168.1.1` | `arp and host 192.168.1.1` |
-| `ip 80` | `ip and port 80` |
-| *(vacío o espacios)* | `` (cadena vacía) |
+| `tcp and port 443` | `tcp and port 443` |
+| `(tcp or udp) and src net 192.168.0.0/16` | `(tcp or udp) and src net 192.168.0.0/16` |
+| `icmp and @8.8.8.8` | `icmp and host 8.8.8.8` |
+| `tcp src:@192.168.1.10 dst:443` | `tcp src host 192.168.1.10 dst port 443` |
+| `ports:53,80,443` | `(port 53 or port 80 or port 443)` |
 
-## Limitaciones actuales
+## Compatibilidad
 
-- No hay paréntesis ni operadores `or`/`not`.
-- No valida formato de IP.
-- No contempla nombres de host DNS.
-- No acepta formas BPF avanzadas (`src port`, `dst port`, `net`, etc.).
+La sintaxis heredada tipo `@host` sigue siendo válida, pero ahora se pueden escribir filtros BPF completos sin perder expresividad.
