@@ -4,9 +4,11 @@ import com.juaneuse.sniffx.filter.BpfFilterBuilder;
 import com.juaneuse.sniffx.model.PacketDetails;
 import com.juaneuse.sniffx.model.PacketInfo;
 import com.juaneuse.sniffx.runtime.SnifferState;
+import com.juaneuse.sniffx.storage.CaptureStorageService;
 import com.juaneuse.sniffx.sniffer.PacketObserver;
 import com.juaneuse.sniffx.runtime.ErrorState;
 import com.juaneuse.sniffx.runtime.SnifferStateObserver;
+import java.io.IOException;
 import java.time.LocalDateTime;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
@@ -22,13 +24,17 @@ import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
 import javafx.scene.control.ToggleButton;
+import javafx.scene.control.ScrollBar;
 import javafx.scene.layout.GridPane;
 
 public class SnifferController implements PacketObserver, SnifferStateObserver {
 
     private final SniffingService sniffService = new SniffingService();
-
     private final ObservableList<PacketDetails> packetList = FXCollections.observableArrayList();
+    private static final int MAX_IN_MEMORY = 100;
+    private static final int PAGE_SIZE = 30;
+    private final CapturePagingManager capturePagingManager =
+            new CapturePagingManager(new CaptureStorageService(), packetList, MAX_IN_MEMORY, PAGE_SIZE);
     private boolean desplegado = false;
     private PacketDetailRenderer detailRenderer;
 
@@ -74,12 +80,10 @@ public class SnifferController implements PacketObserver, SnifferStateObserver {
 
         // Configurar Servicios
         loadInterfacesCombo();
-        sniffService.addPacketObserver(this);
-        sniffService.addStateObserver(this);
+        configureService();
 
         // Configuración inicial
         textFilterBpf.setPromptText("Ej: tcp @192.168.1.1 80-443");
-        configureService();
     }
 
     private void setupListeners() {
@@ -100,6 +104,21 @@ public class SnifferController implements PacketObserver, SnifferStateObserver {
 
             // Detectar si se colapsó manualmente
             desplegado = (pos <= 0.85);
+        });
+
+        tablePackets.skinProperty().addListener((obs, oldSkin, newSkin) -> configureIncrementalLoading());
+    }
+
+    private void configureIncrementalLoading() {
+        ScrollBar verticalBar = (ScrollBar) tablePackets.lookup(".scroll-bar:vertical");
+        if (verticalBar == null) {
+            return;
+        }
+
+        verticalBar.valueProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal.doubleValue() <= 0.05) {
+                loadPreviousPage();
+            }
         });
     }
 
@@ -150,16 +169,20 @@ public class SnifferController implements PacketObserver, SnifferStateObserver {
         }
 
         // Limpiamos datos viejos
-        packetList.clear();
+        capturePagingManager.resetWindow();
         detailRenderer.clear();
 
         // Delegamos al servicio
         try {
             String bpf = BpfFilterBuilder.build(textFilterBpf.getText());
+            capturePagingManager.startSession(interfaz, bpf);
             sniffService.startCapture(interfaz, bpf);
         } catch (IllegalArgumentException e) {
             btnStatus.setSelected(false);
             new Alert(AlertType.WARNING, "Filtro inválido: " + e.getMessage()).showAndWait();
+        } catch (IOException e) {
+            btnStatus.setSelected(false);
+            mostrarAlertaError("No se pudo iniciar almacenamiento de captura: " + e.getMessage());
         }
     }
 
@@ -175,11 +198,11 @@ public class SnifferController implements PacketObserver, SnifferStateObserver {
     public void onPacketReceived(PacketInfo packet) {
         // Siempre usar Platform.runLater para modificar la ObservableList que está atada a la UI
         Platform.runLater(() -> {
-            packetList.add(PacketDetails.from(packet));
-
-            // Mantener la lista en un tamaño manejable para no saturar la memoria
-            if (packetList.size() > 100) {
-                packetList.remove(0);
+            PacketDetails details = PacketDetails.from(packet);
+            try {
+                capturePagingManager.append(details);
+            } catch (IOException e) {
+                mostrarAlertaError("Error persistiendo paquete: " + e.getMessage());
             }
         });
     }
@@ -197,8 +220,28 @@ public class SnifferController implements PacketObserver, SnifferStateObserver {
 
             // Actualización visual según estado
             boolean isRunning = newState.name().equalsIgnoreCase("RUNNING");
+            if (!isRunning) {
+                closeStorageSession();
+            }
             actualizarBotonEstado(isRunning);
         });
+    }
+
+    private void loadPreviousPage() {
+        try {
+            capturePagingManager.loadPreviousPage();
+        } catch (IOException e) {
+            mostrarAlertaError("Error cargando página de paquetes: " + e.getMessage());
+        }
+    }
+
+    private void closeStorageSession() {
+
+        try {
+            capturePagingManager.closeSession();
+        } catch (IOException e) {
+            mostrarAlertaError("No se pudo cerrar sesión de captura: " + e.getMessage());
+        }
     }
 
     private void iniciarCapturaConFiltro(String filtro) {
