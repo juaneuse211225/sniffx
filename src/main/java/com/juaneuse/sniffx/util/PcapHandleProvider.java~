@@ -1,0 +1,23 @@
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
+ */
+package com.juaneuse.sniffx.util;
+
+import org.pcap4j.core.PcapHandle;
+import org.pcap4j.core.PcapNativeException;
+import org.pcap4j.core.PcapNetworkInterface;
+
+/**
+ *
+ * @author juaneuse
+ */
+@FunctionalInterface
+public interface PcapHandleProvider {
+    /**
+     * Define CÓMO se abre el canal de captura.
+     * @param nif La interfaz de red seleccionada.
+     * @return Un handle abierto y listo para usar.
+     */
+    PcapHandle open(PcapNetworkInterface nif) throws PcapNativeException;
+}

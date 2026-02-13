@@ -21,8 +21,12 @@ public class SniffingService {
 
     public SniffingService() {
         this.sniffer = new PacketSniffer();
-        // El RuntimeContext es el "cerebro" que maneja los estados
-        this.runtimeContext = new SnifferRuntimeContext(sniffer);
+        this.runtimeContext = new SnifferRuntimeContext(this.sniffer);
+    }
+
+    public SniffingService(PacketSniffer sniffer, SnifferRuntimeContext context) {
+        this.sniffer = sniffer;
+        this.runtimeContext = context;
     }
 
     public void addPacketObserver(PacketObserver observer) {

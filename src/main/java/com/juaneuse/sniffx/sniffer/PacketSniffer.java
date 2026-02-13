@@ -1,6 +1,7 @@
 package com.juaneuse.sniffx.sniffer;
 
 import com.juaneuse.sniffx.model.PacketInfo;
+import com.juaneuse.sniffx.util.PcapHandleProvider;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.pcap4j.core.BpfProgram;
@@ -25,8 +26,15 @@ public class PacketSniffer {
 
     private final CopyOnWriteArrayList<PacketObserver> packetObservers = new CopyOnWriteArrayList<>();
     private PcapHandle handle;
+    private final PcapHandleProvider handleProvider;
 
     public PacketSniffer() {
+        this((nif) -> nif.openLive(65536, PromiscuousMode.PROMISCUOUS, 10));
+    }
+
+    // para test unitarios
+    public PacketSniffer(PcapHandleProvider provider) {
+        this.handleProvider = provider;
     }
 
     public void addObserver(PacketObserver o) {
@@ -46,56 +54,53 @@ public class PacketSniffer {
     }
 
     public synchronized void start(
-            String interfaceName,
-            List<PcapNetworkInterface> listInterfaces,
-            String bpfFilter
-    ) {
-
-        if (bpfFilter != null && bpfFilter.isBlank()) {
-            bpfFilter = null;
-        }
-
-        try {
-            PcapNetworkInterface nif = listInterfaces.stream()
-                    .filter(i -> i.getName().equals(interfaceName))
-                    .findFirst()
-                    .orElseThrow(() -> new PcapNativeException("Interfaz no encontrada"));
-
-            handle = nif.openLive(
-                    65536,
-                    PromiscuousMode.PROMISCUOUS,
-                    10
-            );
-
-            if (bpfFilter != null) {
-                handle.setFilter(bpfFilter, BpfProgram.BpfCompileMode.OPTIMIZE);
-                logger.info("Filtro BPF aplicado: {}", bpfFilter);
-            }
-
-            Thread.startVirtualThread(() -> {
-                logger.info("Iniciando captura...");
-                try {
-                    handle.loop(-1, new PacketListener() {
-                        @Override
-                        public void gotPacket(Packet packet) {
-                            notifyObservers(new PacketInfo(packet));
-                        }
-                    });
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    logger.info("Hilo de captura interrumpido");
-                } catch (NotOpenException | PcapNativeException e) {
-                    logger.error("Error capturando paquetes", e);
-                    throw new RuntimeException(e);
-                } finally {
-                    logger.info("Hilo de captura finalizado");
-                }
-            }
-            );
-        } catch (NotOpenException | PcapNativeException e) {
-            throw new RuntimeException("Error iniciando captura", e);
-        }
+        String interfaceName,
+        List<PcapNetworkInterface> listInterfaces,
+        String bpfFilter
+) {
+    // 1. Limpieza del filtro
+    if (bpfFilter != null && bpfFilter.isBlank()) {
+        bpfFilter = null;
     }
+
+    try {
+        PcapNetworkInterface nif = listInterfaces.stream()
+                .filter(i -> interfaceName.equals(i.getName()))
+                .findFirst()
+                .orElseThrow(() -> new PcapNativeException("Interfaz no encontrada"));
+
+        handle = handleProvider.open(nif);
+
+        if (bpfFilter != null) {
+            handle.setFilter(bpfFilter, BpfProgram.BpfCompileMode.OPTIMIZE);
+            logger.info("Filtro BPF aplicado: {}", bpfFilter);
+        }
+
+        Thread.startVirtualThread(() -> {
+            logger.info("Iniciando captura en hilo virtual...");
+            try {
+                handle.loop(-1, new PacketListener() {
+                    @Override
+                    public void gotPacket(Packet packet) {
+                        notifyObservers(new PacketInfo(packet));
+                    }
+                });
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                logger.info("Hilo de captura interrumpido.");
+            } catch (NotOpenException | PcapNativeException e) {
+                logger.error("Error crítico durante el loop de captura", e);
+                // Aquí podrías notificar a un ErrorObserver si lo tuvieras
+            } finally {
+                logger.info("Hilo de captura finalizado.");
+            }
+        });
+
+    } catch (NotOpenException | PcapNativeException e) {
+        logger.error("No se pudo iniciar la captura: {}", e.getMessage());
+        throw new RuntimeException("Fallo al abrir el canal de captura", e);
+    }
+}
 
     public synchronized void stop() {
         try {
