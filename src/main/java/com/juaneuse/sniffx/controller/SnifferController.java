@@ -10,12 +10,18 @@ import com.juaneuse.sniffx.runtime.ErrorState;
 import com.juaneuse.sniffx.runtime.SnifferStateObserver;
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Queue;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.collections.transformation.SortedList;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
+import javafx.scene.control.Label;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.ComboBox;
@@ -26,8 +32,16 @@ import javafx.scene.control.TextField;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ScrollBar;
 import javafx.scene.layout.GridPane;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
+import javafx.util.Duration;
 
 public class SnifferController implements PacketObserver, SnifferStateObserver {
+
+    private static final int MAX_UI_PACKETS = 100;
+    private static final int DRAIN_BATCH_SIZE = 120;
+    private static final int MAX_QUEUE_SIZE = 4_000;
+    private static final int DRAIN_INTERVAL_MS = 50;
 
     private final SniffingService sniffService = new SniffingService();
     private final ObservableList<PacketDetails> packetList = FXCollections.observableArrayList();
@@ -35,7 +49,13 @@ public class SnifferController implements PacketObserver, SnifferStateObserver {
     private static final int PAGE_SIZE = 30;
     private final CapturePagingManager capturePagingManager =
             new CapturePagingManager(new CaptureStorageService(), packetList, MAX_IN_MEMORY, PAGE_SIZE);
+    private final Queue<PacketDetails> pendingPackets = new ConcurrentLinkedQueue<>();
+    private final AtomicInteger pendingCount = new AtomicInteger();
+    private final Timeline packetDrainTimeline = new Timeline(
+            new KeyFrame(Duration.millis(DRAIN_INTERVAL_MS), event -> drainPendingPackets())
+    );
     private boolean desplegado = false;
+    private boolean overloadWarningVisible = false;
     private PacketDetailRenderer detailRenderer;
 
     // --- Componentes FXML ---
@@ -51,6 +71,8 @@ public class SnifferController implements PacketObserver, SnifferStateObserver {
     private TableView<PacketDetails> tablePackets;
     @FXML
     private ComboBox<String> comboInterfaces;
+    @FXML
+    private Label labelQueueStatus;
 
     // Columnas
     @FXML
@@ -80,10 +102,13 @@ public class SnifferController implements PacketObserver, SnifferStateObserver {
 
         // Configurar Servicios
         loadInterfacesCombo();
-        configureService();
 
         // Configuración inicial
         textFilterBpf.setPromptText("Ej: tcp @192.168.1.1 80-443");
+        configureService();
+        packetDrainTimeline.setCycleCount(Timeline.INDEFINITE);
+        packetDrainTimeline.play();
+        updateQueueStatus(false);
     }
 
     private void setupListeners() {
@@ -170,6 +195,10 @@ public class SnifferController implements PacketObserver, SnifferStateObserver {
 
         // Limpiamos datos viejos
         capturePagingManager.resetWindow();
+        packetList.clear();
+        pendingPackets.clear();
+        pendingCount.set(0);
+        updateQueueStatus(false);
         detailRenderer.clear();
 
         // Delegamos al servicio
@@ -203,8 +232,16 @@ public class SnifferController implements PacketObserver, SnifferStateObserver {
                 capturePagingManager.append(details);
             } catch (IOException e) {
                 mostrarAlertaError("Error persistiendo paquete: " + e.getMessage());
+        pendingPackets.offer(PacketDetails.from(packet));
+        int currentSize = pendingCount.incrementAndGet();
+
+        while (currentSize > MAX_QUEUE_SIZE) {
+            PacketDetails dropped = pendingPackets.poll();
+            if (dropped == null) {
+                break;
             }
-        });
+            currentSize = pendingCount.decrementAndGet();
+        }
     }
 
     @Override
@@ -273,6 +310,47 @@ public class SnifferController implements PacketObserver, SnifferStateObserver {
     private void configureService() {
         sniffService.addPacketObserver(this);
         sniffService.addStateObserver(this); // Escuchar cambios de estado
+    }
+
+    private void drainPendingPackets() {
+        List<PacketDetails> batch = new ArrayList<>(DRAIN_BATCH_SIZE);
+        for (int i = 0; i < DRAIN_BATCH_SIZE; i++) {
+            PacketDetails packet = pendingPackets.poll();
+            if (packet == null) {
+                break;
+            }
+            pendingCount.decrementAndGet();
+            batch.add(packet);
+        }
+
+        if (!batch.isEmpty()) {
+            packetList.addAll(batch);
+            int overflow = packetList.size() - MAX_UI_PACKETS;
+            if (overflow > 0) {
+                packetList.remove(0, overflow);
+            }
+        }
+
+        updateQueueStatus(pendingCount.get() > MAX_QUEUE_SIZE / 2);
+    }
+
+    private void updateQueueStatus(boolean overloaded) {
+        if (labelQueueStatus == null) {
+            return;
+        }
+
+        if (overloaded) {
+            labelQueueStatus.setText("Sobrecarga: la vista está descartando paquetes de cola");
+            labelQueueStatus.setStyle("-fx-text-fill: #d35400; -fx-font-weight: bold;");
+            overloadWarningVisible = true;
+            return;
+        }
+
+        if (overloadWarningVisible || pendingCount.get() == 0) {
+            labelQueueStatus.setText("Estado de cola: normal");
+            labelQueueStatus.setStyle("-fx-text-fill: #2e7d32;");
+            overloadWarningVisible = false;
+        }
     }
 
     private void actualizarBotonEstado(boolean capturing) {
