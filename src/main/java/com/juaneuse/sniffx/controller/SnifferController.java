@@ -74,8 +74,6 @@ public class SnifferController implements PacketObserver, SnifferStateObserver {
 
         // Configurar Servicios
         loadInterfacesCombo();
-        sniffService.addPacketObserver(this);
-        sniffService.addStateObserver(this);
 
         // Configuración inicial
         textFilterBpf.setPromptText("Ej: tcp @192.168.1.1 80-443");
