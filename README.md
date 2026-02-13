@@ -5,9 +5,9 @@ Actualmente está enfocado en:
 
 - captura básica de paquetes por interfaz,
 - visualización de tráfico en tabla + detalle,
-- aplicación de filtros BPF generados desde una sintaxis simple.
+- aplicación de filtros BPF con sintaxis avanzada y alias amigables.
 
-> Nota: el proyecto está en evolución. Algunas capacidades son deliberadamente básicas por ahora (por ejemplo, el parser de filtros).
+> Nota: el proyecto está en evolución. Se prioriza una experiencia simple, manteniendo compatibilidad con sintaxis BPF estándar.
 
 ## Estado actual del proyecto
 
@@ -17,12 +17,11 @@ Actualmente está enfocado en:
 - Inicio/detención de captura desde UI.
 - Disección de protocolos comunes (Ethernet, ARP, IPv4/IPv6, ICMPv4/ICMPv6, TCP, UDP).
 - Conversión de cada paquete a una vista enriquecida (`PacketDetails`) para la interfaz.
-- Filtro simple de usuario traducido a BPF (`SimpleFilterParser`).
+- Builder de filtros BPF con alias de alto nivel (`BpfFilterBuilder`).
 
 ### Lo que **no** está implementado todavía
 
 - Estadísticas avanzadas en vivo (gráficas, métricas históricas, etc.).
-- Sintaxis BPF compleja desde el input amigable (OR/NOT, paréntesis, `src port`, `dst port`, `net`, etc.).
 
 Para detalles técnicos revisa:
 
@@ -92,7 +91,7 @@ Ejecuta la app en una terminal con privilegios de administrador cuando sea neces
 ## Uso básico
 
 1. Selecciona una interfaz de red.
-2. (Opcional) escribe un filtro simple.
+2. (Opcional) escribe un filtro en sintaxis BPF o usando alias de SniffX.
 3. Presiona **Iniciar**.
 4. Selecciona paquetes para ver detalle y hexdump.
 5. Presiona **Detener** para finalizar la captura.
@@ -111,7 +110,7 @@ Ejecuta la app en una terminal con privilegios de administrador cuando sea neces
 
 ![Filtro aplicado y detalle de paquete](./docs/images/sniffx-filter-detail.png)
 
-<sub>Ejemplo de filtro simple (`icmp @8.8.8.8`) y visualización del detalle del paquete seleccionado con hexdump.</sub>
+<sub>Ejemplo de filtro (`icmp and @8.8.8.8`) y visualización del detalle del paquete seleccionado con hexdump.</sub>
 
 ### 3) Detalle extendido (IPv6/UDP)
 

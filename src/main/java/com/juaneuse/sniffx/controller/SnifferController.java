@@ -1,6 +1,6 @@
 package com.juaneuse.sniffx.controller;
 
-import com.juaneuse.sniffx.filter.SimpleFilterParser;
+import com.juaneuse.sniffx.filter.BpfFilterBuilder;
 import com.juaneuse.sniffx.model.PacketDetails;
 import com.juaneuse.sniffx.model.PacketInfo;
 import com.juaneuse.sniffx.runtime.SnifferState;
@@ -154,8 +154,13 @@ public class SnifferController implements PacketObserver, SnifferStateObserver {
         detailRenderer.clear();
 
         // Delegamos al servicio
-        String bpf = SimpleFilterParser.parse(textFilterBpf.getText());
-        sniffService.startCapture(interfaz, bpf);
+        try {
+            String bpf = BpfFilterBuilder.build(textFilterBpf.getText());
+            sniffService.startCapture(interfaz, bpf);
+        } catch (IllegalArgumentException e) {
+            btnStatus.setSelected(false);
+            new Alert(AlertType.WARNING, "Filtro inválido: " + e.getMessage()).showAndWait();
+        }
     }
 
     private void loadInterfacesCombo() {
@@ -208,7 +213,12 @@ public class SnifferController implements PacketObserver, SnifferStateObserver {
 
         packetList.clear();
         // El servicio ahora usa el RuntimeContext internamente
-        sniffService.startCapture(selectedInterface, SimpleFilterParser.parse(filtro));
+        try {
+            sniffService.startCapture(selectedInterface, BpfFilterBuilder.build(filtro));
+        } catch (IllegalArgumentException e) {
+            btnStatus.setSelected(false);
+            new Alert(AlertType.WARNING, "Filtro inválido: " + e.getMessage()).showAndWait();
+        }
     }
 
     private void detenerCaptura() {
